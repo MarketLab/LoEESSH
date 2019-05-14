@@ -42,7 +42,7 @@ type rsshtSession struct {
 
 var authorizedKeys map[string]rsshtKey
 
-func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forwardedTCPIRequest) {
+func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forwardedTCPIPRequest) {
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
@@ -93,7 +93,7 @@ func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	}
 	session.httpListener = listener
 
-	go acceptAndForward(session.httpListener, &session, &forwardedTCPIRequest{"localhost", 80, "proxy", 0})
+	go acceptAndForward(session.httpListener, &session, &forwardedTCPIPRequest{"localhost", 80, "proxy", 0})
 
 	return &session
 }
@@ -370,7 +370,7 @@ type tcpIPForwardRequest struct {
 	Port    uint32
 }
 
-type forwardedTCPIRequest struct {
+type forwardedTCPIPRequest struct {
 	Address    string
 	Port       uint32
 	SrcAddress string
