@@ -79,10 +79,12 @@ func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forw
 	}
 }
 
+var unixSocketsDir string
+
 func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	opts := authorizedKeys[sshConn.Permissions.Extensions["key"]]
 	session := rsshtSession{machID: opts.machID, sshConn: sshConn, quit: make(chan bool)}
-	sockname := "http-sockets/" + opts.machID
+	sockname := unixSocketsDir + "/" + opts.machID
 	os.Remove(sockname)
 	listener, err := net.Listen("unix", sockname)
 	if err != nil {
@@ -101,10 +103,26 @@ func (s *rsshtSession) Close() {
 	s.sshConn.Close()
 }
 
+var authorizedKeysPath string
+var hostKeyPath string
+
 func main() {
-	authorizedKeys = loadAuthorizedKeys("./authorized_keys")
-	hostKey := loadHostKey("./ssh_host_rsa_key")
-	os.MkdirAll("./http-sockets", 0700)
+	var found = false
+
+	if authorizedKeysPath, found = os.LookupEnv("AUTHORIZED_KEYS_PATH"); !found {
+		authorizedKeysPath = "/keys/authorized_keys"
+	}
+	authorizedKeys = loadAuthorizedKeys(authorizedKeysPath)
+
+	if hostKeyPath, found = os.LookupEnv("HOST_KEY_PATH"); !found {
+		hostKeyPath = "/keys/host_key"
+	}
+	hostKey := loadHostKey(hostKeyPath)
+
+	if unixSocketsDir, found = os.LookupEnv("UNIX_SOCKETS_DIR"); !found {
+		unixSocketsDir = "/sockets"
+	}
+	os.MkdirAll(unixSocketsDir, 0700)
 
 	rsshtSessions := map[string]*rsshtSession{}
 
