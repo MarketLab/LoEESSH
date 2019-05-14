@@ -43,7 +43,7 @@ type rsshtSession struct {
 
 var authorizedKeys map[string]rsshtKey
 
-func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forwardedTcpIpRequest) {
+func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forwardedTCPIRequest) {
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
@@ -97,8 +97,8 @@ func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	}
 	session.httpListener = listener
 
-	go acceptAndForward(session.sshListener, &session, &forwardedTcpIpRequest{"localhost", 22, "proxy", 0})
-	go acceptAndForward(session.httpListener, &session, &forwardedTcpIpRequest{"localhost", 80, "proxy", 0})
+	go acceptAndForward(session.sshListener, &session, &forwardedTCPIRequest{"localhost", 22, "proxy", 0})
+	go acceptAndForward(session.httpListener, &session, &forwardedTCPIRequest{"localhost", 80, "proxy", 0})
 
 	return &session
 }
@@ -170,7 +170,7 @@ func main() {
 				switch req.Type {
 				case "tcpip-forward":
 					req.Reply(true, nil)
-					opts := tcpIpForwardRequest{}
+					opts := tcpIPForwardRequest{}
 					ssh.Unmarshal(req.Payload, &opts)
 					log.Println("forward:", opts)
 				case "keepalive@openssh.com":
@@ -324,12 +324,12 @@ func handleChannel(newChannel ssh.NewChannel) {
 }
 
 // SSH protocol frames
-type tcpIpForwardRequest struct {
+type tcpIPForwardRequest struct {
 	Address string
 	Port    uint32
 }
 
-type forwardedTcpIpRequest struct {
+type forwardedTCPIRequest struct {
 	Address    string
 	Port       uint32
 	SrcAddress string
