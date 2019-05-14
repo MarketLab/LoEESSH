@@ -246,12 +246,16 @@ func loadAuthorizedKeys(fname string) map[string]rsshtKey {
 		log.Fatal("Failed to load authorized keys from:", fname)
 	}
 
+	var count = 0
 	for len(bytes) > 0 {
-		key, comment, options, rest, err := ssh.ParseAuthorizedKey(bytes)
+		key, _, options, rest, err := ssh.ParseAuthorizedKey(bytes)
 		if err != nil {
-			log.Fatal("failed to parse authorized keys at: ", strconv.Quote(string(bytes[:30])))
+			log.Printf("failed to parse authorized keys at: %s", strconv.Quote(string(bytes[:30])))
+			bytes = rest
+
+			continue
 		}
-		log.Println("found authorized key:", string(ssh.MarshalAuthorizedKey(key)), "with comment:", comment, "and options:", options)
+		count++
 		keyString := string(key.Marshal())
 		rsshtkey := rsshtKey{}
 		for _, option := range options {
@@ -262,6 +266,7 @@ func loadAuthorizedKeys(fname string) map[string]rsshtKey {
 		keys[keyString] = rsshtkey
 		bytes = rest
 	}
+	log.Printf("loaded %d keys from %s", count, fname)
 
 	return keys
 }
