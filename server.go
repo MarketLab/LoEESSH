@@ -29,14 +29,12 @@ import (
 )
 
 type rsshtKey struct {
-	machID  string
-	sshPort uint16
+	machID string
 }
 
 type rsshtSession struct {
 	machID       string
 	sshConn      *ssh.ServerConn
-	sshListener  net.Listener
 	httpListener net.Listener
 	quit         chan bool
 }
@@ -84,20 +82,14 @@ func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forw
 func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	opts := authorizedKeys[sshConn.Permissions.Extensions["key"]]
 	session := rsshtSession{machID: opts.machID, sshConn: sshConn, quit: make(chan bool)}
-	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", opts.sshPort))
-	if err != nil {
-		log.Fatalln("Failed to listen on tcp port:", opts.sshPort, "for machid:", opts.machID, "error:", err)
-	}
-	session.sshListener = listener
 	sockname := "http-sockets/" + opts.machID
 	os.Remove(sockname)
-	listener, err = net.Listen("unix", sockname)
+	listener, err := net.Listen("unix", sockname)
 	if err != nil {
 		log.Fatal(err)
 	}
 	session.httpListener = listener
 
-	go acceptAndForward(session.sshListener, &session, &forwardedTCPIRequest{"localhost", 22, "proxy", 0})
 	go acceptAndForward(session.httpListener, &session, &forwardedTCPIRequest{"localhost", 80, "proxy", 0})
 
 	return &session
@@ -105,7 +97,6 @@ func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 
 func (s *rsshtSession) Close() {
 	close(s.quit)
-	s.sshListener.Close()
 	s.httpListener.Close()
 	s.sshConn.Close()
 }
@@ -205,13 +196,6 @@ func loadAuthorizedKeys(fname string) map[string]rsshtKey {
 			if val, found := withoutPrefix(option, "machid="); found {
 				rsshtkey.machID = val
 			}
-			if val, found := withoutPrefix(option, "sshport="); found {
-				port, err := strconv.ParseUint(val, 10, 16)
-				if err != nil {
-					log.Fatalf("invalid sshport: %v for key: ", val, ssh.MarshalAuthorizedKey(key))
-				}
-				rsshtkey.sshPort = uint16(port)
-			}
 		}
 		keys[keyString] = rsshtkey
 		bytes = rest
@@ -308,16 +292,6 @@ func handleChannel(newChannel ssh.NewChannel) {
 				if len(req.Payload) == 0 {
 					req.Reply(true, nil)
 				}
-				// case "pty-req":
-				//   termLen := req.Payload[3]
-				//   w, h := parseDims(req.Payload[termLen+4:])
-				//   SetWinsize(bashf.Fd(), w, h)
-				//   // Responding true (OK) here will let the client
-				//   // know we have a pty ready for input
-				//   req.Reply(true, nil)
-				// case "window-change":
-				//   w, h := parseDims(req.Payload)
-				//   SetWinsize(bashf.Fd(), w, h)
 			}
 		}
 	}()
