@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/kr/pty"
 	"golang.org/x/crypto/ssh"
 )
@@ -105,6 +106,42 @@ func (s *rsshtSession) Close() {
 
 var authorizedKeysPath string
 var hostKeyPath string
+var authMutex sync.RWMutex
+
+func observeAuthKeysFile() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to initialize authorized keys observer: %s", err.Error())
+	}
+	if err := watcher.Add(authorizedKeysPath); err != nil {
+		return fmt.Errorf("failed to initialize authorized keys observer: %s", err.Error())
+	}
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return fmt.Errorf("failed to process event queue from authorized keys observer")
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				log.Println("detected change in authorized keys file - reloading")
+
+				authMutex.Lock()
+				authorizedKeys = loadAuthorizedKeys(authorizedKeysPath)
+				authMutex.Unlock()
+			}
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				log.Println("detected change in authorized keys file - reloading")
+
+				authMutex.Lock()
+				authorizedKeys = loadAuthorizedKeys(authorizedKeysPath)
+				authMutex.Unlock()
+			}
+		}
+	}
+
+	return nil
+}
 
 func main() {
 	var found = false
@@ -112,7 +149,12 @@ func main() {
 	if authorizedKeysPath, found = os.LookupEnv("AUTHORIZED_KEYS_PATH"); !found {
 		authorizedKeysPath = "/keys/authorized_keys"
 	}
+
+	authMutex.Lock()
 	authorizedKeys = loadAuthorizedKeys(authorizedKeysPath)
+	authMutex.Unlock()
+
+	go observeAuthKeysFile()
 
 	if hostKeyPath, found = os.LookupEnv("HOST_KEY_PATH"); !found {
 		hostKeyPath = "/keys/host_key"
@@ -130,6 +172,8 @@ func main() {
 		PublicKeyCallback: func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			log.Println(c.RemoteAddr(), "authenticate with", key.Type(), strconv.Quote(string(key.Marshal())))
 			keyString := string(key.Marshal())
+			authMutex.RLock()
+			defer authMutex.RUnlock()
 			if _, found := authorizedKeys[keyString]; found {
 				return &ssh.Permissions{
 					Extensions: map[string]string{
