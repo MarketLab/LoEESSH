@@ -173,11 +173,11 @@ func main() {
 
 	config := &ssh.ServerConfig{
 		PublicKeyCallback: func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			log.Println(c.RemoteAddr(), "authenticate with", key.Type(), strconv.Quote(string(key.Marshal())))
 			keyString := string(key.Marshal())
 			authMutex.RLock()
 			defer authMutex.RUnlock()
-			if _, found := authorizedKeys[keyString]; found {
+			if machine, found := authorizedKeys[keyString]; found {
+				log.Printf("Authenticated %s (%s) with (%s)", machine, c.RemoteAddr(), key.Type())
 				return &ssh.Permissions{
 					Extensions: map[string]string{
 						"key": keyString,
@@ -216,8 +216,8 @@ func main() {
 		key := sshConn.Permissions.Extensions["key"]
 		oldSession, found := rsshtSessions[key]
 		if found {
-			log.Printf("Cleaning up old session for key: %s (%s, %s)",
-				strconv.Quote(key), oldSession.sshConn.RemoteAddr(), oldSession.sshConn.ClientVersion())
+			log.Printf("Cleaning up old session for machine: %s (%s, %s)",
+				authorizedKeys[key], oldSession.sshConn.RemoteAddr(), oldSession.sshConn.ClientVersion())
 			oldSession.Close()
 		}
 		rsshtSessions[key] = createSession(sshConn)
@@ -226,9 +226,9 @@ func main() {
 
 		go func(in <-chan *ssh.Request) {
 			for req := range in {
-				log.Println("OOB Request:", req.Type, "wants reply:", req.WantReply, "payload:", strconv.Quote(string(req.Payload)))
 				switch req.Type {
 				case "tcpip-forward":
+					log.Println("OOB Request:", req.Type, "wants reply:", req.WantReply, "payload:", strconv.Quote(string(req.Payload)))
 					req.Reply(true, nil)
 					opts := tcpIPForwardRequest{}
 					ssh.Unmarshal(req.Payload, &opts)
