@@ -58,7 +58,8 @@ func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forw
 
 		sshc, reqs, err := session.sshConn.OpenChannel("forwarded-tcpip", ssh.Marshal(sshReq))
 		if err != nil {
-			log.Fatal("Failed to open ssh channel:", err, "for:", sshReq)
+			log.Printf("Failed to open ssh channel: %s for: %s \n" err, sshReq)
+			continue
 		}
 
 		go ssh.DiscardRequests(reqs)
@@ -90,7 +91,8 @@ func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	os.Remove(sockname)
 	listener, err := net.Listen("unix", sockname)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create session: %s", err.Error())
+		return nil
 	}
 	session.httpListener = listener
 
