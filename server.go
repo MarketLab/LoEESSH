@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kr/pty"
@@ -200,11 +201,15 @@ func main() {
 			continue
 		}
 
+		tcpConn.SetDeadline(time.Now().Add(10 * time.Second))
+
 		sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
 		if err != nil {
 			log.Printf("Failed to handshake (%s)", err)
 			continue
 		}
+
+		tcpConn.SetDeadline(time.Time{})
 
 		key := sshConn.Permissions.Extensions["key"]
 		oldSession, found := rsshtSessions[key]
