@@ -38,6 +38,7 @@ type rsshtSession struct {
 	machID       string
 	sshConn      *ssh.ServerConn
 	httpListener net.Listener
+	sshListener  net.Listener
 	quit         chan bool
 }
 
@@ -97,6 +98,17 @@ func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	session.httpListener = listener
 
 	go acceptAndForward(session.httpListener, &session, &forwardedTCPIPRequest{"localhost", 80, "proxy", 0})
+
+	// Handle port 22 forwarding
+	sockname = unixSocketsDir + "/" + opts.machID + "-22"
+	os.Remove(sockname)
+	listener, err = net.Listen("unix", sockname)
+	if err != nil {
+		log.Printf("Failed to create listener for %d: %s", 22, err.Error())
+		return nil
+	}
+	session.sshListener = listener
+	go acceptAndForward(session.sshListener, &session, &forwardedTCPIPRequest{"localhost", 22, "proxy", 0})
 
 	return &session
 }
