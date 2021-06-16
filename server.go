@@ -88,15 +88,16 @@ var unixSocketsDir string
 func createSession(sshConn *ssh.ServerConn) (s *rsshtSession) {
 	opts := authorizedKeys[sshConn.Permissions.Extensions["key"]]
 	session := rsshtSession{machID: opts.machID, sshConn: sshConn, quit: make(chan bool)}
-	sockname := unixSocketsDir + "/" + opts.machID
+
+	// Handle port 80 forwarding
+	sockname := unixSocketsDir + "/" + opts.machID + "-80"
 	os.Remove(sockname)
 	listener, err := net.Listen("unix", sockname)
 	if err != nil {
-		log.Printf("Failed to create session: %s", err.Error())
+		log.Printf("Failed to create listener for %d: %s", 80, err.Error())
 		return nil
 	}
 	session.httpListener = listener
-
 	go acceptAndForward(session.httpListener, &session, &forwardedTCPIPRequest{"localhost", 80, "proxy", 0})
 
 	// Handle port 22 forwarding
