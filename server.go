@@ -43,7 +43,7 @@ type rsshtSession struct {
 
 var authorizedKeys map[string]rsshtKey
 
-func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forwardedTCPIPRequest) {
+func acceptAndForward(listener net.Listener, session *rsshtSession, forwardReq *forwardedTCPIPRequest) {
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
@@ -56,9 +56,9 @@ func acceptAndForward(listener net.Listener, session *rsshtSession, sshReq *forw
 			}
 		}
 
-		sshc, reqs, err := session.sshConn.OpenChannel("forwarded-tcpip", ssh.Marshal(sshReq))
+		sshc, reqs, err := session.sshConn.OpenChannel("forwarded-tcpip", ssh.Marshal(forwardReq))
 		if err != nil {
-			log.Printf("Failed to open ssh channel: %s for: %s \n", err, sshReq)
+			log.Printf("Failed to open ssh channel: %s for: %s \n", err, forwardReq)
 			continue
 		}
 
